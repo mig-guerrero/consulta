@@ -1,18 +1,29 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS # <-- NUEVO: Para permitir conexiones externas
 import sqlite3
+import os # <-- NUEVO: Para leer el puerto de Render
 
 app = Flask(__name__)
+CORS(app) # <-- NUEVO: Habilita CORS para tu frontend PHP
+
+# Nombre del archivo de la base de datos
 DB_FILE = "sistema_registro.db"
 
 def inicializar_base_datos():
+    """Crea las tablas si no existen."""
     conexion = sqlite3.connect(DB_FILE)
     cursor = conexion.cursor()
     
-    # 1. Tabla de usuarios (formulario)
+    # 1. Tabla de usuarios
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS usuarios (
-            cedula TEXT PRIMARY KEY, nombre1 TEXT NOT NULL, nombre2 TEXT,
-            apellido1 TEXT NOT NULL, apellido2 TEXT, telefono TEXT, direccion TEXT
+            cedula TEXT PRIMARY KEY, 
+            nombre1 TEXT NOT NULL, 
+            nombre2 TEXT,
+            apellido1 TEXT NOT NULL, 
+            apellido2 TEXT, 
+            telefono TEXT, 
+            direccion TEXT
         )
     """)
     
@@ -24,11 +35,11 @@ def inicializar_base_datos():
         )
     """)
     
-    # 3. Insertar el usuario admin por defecto (admin / 1234)
+    # 3. Insertar el usuario admin por defecto si no existe
     try:
         cursor.execute("INSERT INTO admin (usuario, password) VALUES ('admin', '1234')")
     except sqlite3.IntegrityError:
-        pass # Si ya existe, no hace nada
+        pass 
         
     conexion.commit()
     conexion.close()
@@ -102,12 +113,19 @@ def procesar():
             
     except sqlite3.Error as err:
         respuesta["mensaje"] = f"Error en la base de datos: {err}"
+    except KeyError as err:
+        respuesta["mensaje"] = f"Falta un campo en los datos enviados: {err}"
     finally:
         cursor.close()
         conexion.close()
         
     return jsonify(respuesta)
 
+# --- ARRANQUE DEL SERVIDOR ---
 if __name__ == '__main__':
-    inicializar_base_datos() # Crea las tablas antes de arrancar
-    app.run(port=5000, debug=True)
+    inicializar_base_datos()
+    
+    # Si estamos en Render, usará el puerto que nos asignen.
+    # Si estamos en local (tu PC), usará el puerto 5000.
+    puerto = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=puerto)
